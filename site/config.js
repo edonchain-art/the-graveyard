@@ -11,5 +11,17 @@ export const CONFIG = {
 };
 
 const q = new URLSearchParams(location.search);
+if (q.get("network") === "base-sepolia") {
+  Object.assign(CONFIG, {
+    chainId: 84532,
+    chainName: "Base Sepolia",
+    rpc: "https://sepolia.base.org",
+    explorer: "https://sepolia.basescan.org",
+    RAFFLE: "",
+    ZOMBIES: "",
+    testnet: true,
+  });
+}
+if (q.get("zombies")) CONFIG.ZOMBIES = q.get("zombies");
 if (q.get("rpc")) CONFIG.rpc = q.get("rpc");
 if (q.get("raffle")) CONFIG.RAFFLE = q.get("raffle");

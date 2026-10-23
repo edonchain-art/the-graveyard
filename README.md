@@ -36,6 +36,16 @@ tools/deploy.html           local page to deploy the raffle from your wallet
 5. **Draw.** Anyone presses **Request Chainlink VRF draw**. The fee is a few cents on Base, and any excess is refunded.
 6. **Settle.** Once Chainlink answers, anyone presses **Reveal winner & send prize**. Without the site, `node snapshot/proof.mjs <file> <drawnIndex>` prints the `settle()` arguments.
 
+## Test runs on Base Sepolia
+
+`test/TestZombies.sol` is a stand-in collection for live tests with real Chainlink VRF on Base Sepolia
+(wrapper `0x7a1BaC17Ccc5b313516C5E16fb24f7659aA5ebed`). Snapshot it with
+`node snapshot.mjs --network base-sepolia --collection <TestZombies> --raffle <raffle> --giveaway 0 --listings-file fixtures/testnet-listings.json`,
+and view it on the site with `?network=base-sepolia&raffle=<raffle>&zombies=<TestZombies>`. The site shows a "Test mode" banner.
+
+First live test (2026-10-23): raffle `0x28359148a3a61Fe854769C209841b481e22B0c68`, TestZombies `0x545d02125ff136551688daf13406950a5e0148e7`.
+Chainlink VRF fulfilled in about 8 seconds, and the prize was settled to the drawn holder.
+
 ## Development
 
 ```bash

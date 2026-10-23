@@ -183,7 +183,7 @@ async function renderCurrent() {
       ${meta.image ? `<img src="${esc(meta.image)}" alt="${esc(meta.name)}">` : `<div class="card">No image</div>`}
       ${meta.onchain ? `<span class="badge">Fully onchain</span>` : ""}
       <div class="prize-name">${esc(meta.name)}</div>
-      <a class="small" href="${CONFIG.opensea}${live.prizeTokenId}" target="_blank" rel="noopener">View on OpenSea</a>
+      ${CONFIG.testnet ? "" : `<a class="small" href="${CONFIG.opensea}${live.prizeTokenId}" target="_blank" rel="noopener">View on OpenSea</a>`}
     </div>
     <div>
       <div class="status-head"><h3>Giveaway #${live.id}</h3>${statusChip(live)}</div>
@@ -450,6 +450,13 @@ $("aCancel").onclick = async () => {
 };
 
 // ---------------------------------------------------------------- boot
+
+if (CONFIG.testnet) {
+  const bar = document.createElement("div");
+  bar.className = "testnet-bar";
+  bar.textContent = `Test mode · ${CONFIG.chainName} · not real Zombies`;
+  document.body.prepend(bar);
+}
 
 $("connect").onclick = () => connect().catch((e) => alert(e.message));
 if (window.ethereum) {

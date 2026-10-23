@@ -8,6 +8,7 @@
 // Usage:
 //   node snapshot.mjs --giveaway 0 --raffle 0xRaffle [--block 123] [--exclude 0xA,0xB]
 //                     [--listings-file listings.json] [--out ../site/snapshots/giveaway-0.json]
+//   Test runs on Base Sepolia: add --network base-sepolia --collection 0xTestZombies --listings-file f
 //
 // Output: a JSON file with the snapshot details, exclusions, Merkle root and the full
 // OpenZeppelin StandardMerkleTree dump (anyone can rebuild the root from it).
@@ -16,10 +17,10 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPublicClient, http, getAddress, parseAbi, zeroAddress } from "viem";
-import { base } from "viem/chains";
+import { base, baseSepolia } from "viem/chains";
 import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
 
-const ZOMBIES = getAddress("0xa2d33352e3e2b4fe1b8af7387c375828197bcd9b");
+let ZOMBIES = getAddress("0xa2d33352e3e2b4fe1b8af7387c375828197bcd9b");
 const OPENSEA = "https://api.opensea.io/api/v2";
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -111,7 +112,12 @@ async function main() {
   }
   const giveawayId = Number(args.giveaway);
   const raffle = getAddress(args.raffle);
-  const client = createPublicClient({ chain: base, transport: http(process.env.BASE_RPC_URL || "https://mainnet.base.org") });
+  const testnet = args.network === "base-sepolia";
+  const chain = testnet ? baseSepolia : base;
+  if (args.collection) ZOMBIES = getAddress(args.collection);
+  if (testnet && !args["listings-file"]) throw new Error("--network base-sepolia needs --listings-file (OpenSea has no testnet listings API here)");
+  const rpc = testnet ? process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org" : process.env.BASE_RPC_URL || "https://mainnet.base.org";
+  const client = createPublicClient({ chain, transport: http(rpc) });
 
   const blockNumber = args.block ? BigInt(args.block) : await client.getBlockNumber();
   const block = await client.getBlock({ blockNumber });
@@ -191,7 +197,7 @@ async function main() {
   const out = {
     project: "The Graveyard",
     giveawayId,
-    chainId: base.id,
+    chainId: chain.id,
     raffle,
     collection: { address: ZOMBIES, openseaSlug: slug },
     rules: [
