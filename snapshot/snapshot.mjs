@@ -204,8 +204,8 @@ async function main() {
       "One ticket per Zombies On Base token held at the snapshot block.",
       "Wallets with any Zombie actively listed on OpenSea at snapshot time are excluded.",
       "The collection owner wallet and the raffle contract are excluded.",
-      "Chainlink VRF picks ticket index = keccak256(abi.encode(randomWord, rerolls)) % entrantCount.",
-      "If the drawn holder no longer owns that Zombie when the prize is settled, the ticket is void and the next index is drawn.",
+      "Chainlink VRF picks the winning ticket: index = keccak256(abi.encode(randomWord)) % entrantCount.",
+      "The prize goes to the holder recorded in this snapshot for the winning ticket.",
     ],
     snapshot: {
       block: String(blockNumber),

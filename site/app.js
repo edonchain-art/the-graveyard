@@ -18,7 +18,7 @@ const STATUS = ["None", "Open", "Committed", "Drawing", "Drawn", "Completed", "C
 const S = Object.fromEntries(STATUS.map((s, i) => [s, i]));
 
 const raffleAbi = parseAbi([
-  "struct Giveaway { uint256 prizeTokenId; uint64 openedAt; uint64 closesAt; uint64 requestedAt; uint64 completedAt; uint8 status; uint32 entrantCount; uint32 rerolls; bytes32 entrantsRoot; string entrantsURI; uint256 requestId; uint256 randomWord; address winner; uint256 winningTokenId; uint32 winningIndex; }",
+  "struct Giveaway { uint256 prizeTokenId; uint64 openedAt; uint64 closesAt; uint64 requestedAt; uint64 completedAt; uint8 status; uint32 entrantCount; bytes32 entrantsRoot; string entrantsURI; uint256 requestId; uint256 randomWord; address winner; uint256 winningTokenId; uint32 winningIndex; }",
   "function owner() view returns (address)",
   "function giveawayCount() view returns (uint256)",
   "function getGiveaway(uint256 id) view returns (Giveaway)",
@@ -26,7 +26,7 @@ const raffleAbi = parseAbi([
   "function drawPrice() view returns (uint256)",
   "function commitEntrants(uint256 id, bytes32 root, uint32 entrantCount, string entrantsURI)",
   "function requestDraw(uint256 id) payable returns (uint256)",
-  "function settle(uint256 id, uint32 index, address holder, uint256 zombieTokenId, bytes32[] proof) returns (bool)",
+  "function settle(uint256 id, uint32 index, address holder, uint256 zombieTokenId, bytes32[] proof)",
   "function cancel(uint256 id)",
 ]);
 const zombiesAbi = parseAbi([
@@ -89,10 +89,35 @@ async function tokenMeta(tokenId) {
   return p;
 }
 
+/** Snapshot links must be https or a path on this site (never javascript:, data:, etc). */
+function snapshotUrl(uri) {
+  let u;
+  try {
+    u = new URL(uri, location.href);
+  } catch {
+    return null;
+  }
+  return u.protocol === "https:" || u.origin === location.origin ? u : null;
+}
+
+/** Rebuild the Merkle tree from a snapshot file and check it is internally consistent. */
+function checkSnapshot(snap) {
+  const tree = StandardMerkleTree.load(snap.tree);
+  if (tree.root !== snap.merkleRoot) throw new Error("Snapshot tree does not match its Merkle root.");
+  const values = snap.tree.values;
+  if (values.length !== Number(snap.entrantCount)) throw new Error(`Snapshot has ${values.length} tickets but says ${snap.entrantCount}.`);
+  values.forEach((v, i) => {
+    if (Number(v.value[0]) !== i) throw new Error(`Ticket ${i} is out of order.`);
+  });
+  return tree;
+}
+
 async function loadSnapshot(uri) {
   if (!uri) return null;
   if (snapCache.has(uri)) return snapCache.get(uri);
-  const p = fetch(new URL(uri, location.href), { cache: "no-store" }).then((r) => {
+  const url = snapshotUrl(uri);
+  if (!url) throw new Error("Snapshot link is not an https URL.");
+  const p = fetch(url, { cache: "no-store" }).then((r) => {
     if (!r.ok) throw new Error(`Snapshot not found (${r.status})`);
     return r.json();
   });
@@ -194,11 +219,10 @@ async function renderCurrent() {
         ${live.status >= S.Committed && live.status !== S.Cancelled ? `
           <dt>Tickets</dt><dd>${live.entrantCount}${snap ? ` from ${snap.stats.eligibleWallets} wallets` : ""}</dd>
           ${snap ? `<dt>Excluded</dt><dd>${snap.excluded.length} wallets (${snap.excluded.filter((e) => e.reasons.includes("listed on OpenSea")).length} with OpenSea listings)</dd>` : ""}
-          <dt>Snapshot</dt><dd>${snap ? `block ${snap.snapshot.block} · <a href="${esc(new URL(live.entrantsURI, location.href))}" target="_blank" rel="noopener">full list</a>` : esc(live.entrantsURI)}</dd>
+          <dt>Snapshot</dt><dd>${snap ? `block ${snap.snapshot.block} · <a href="${esc(snapshotUrl(live.entrantsURI))}" target="_blank" rel="noopener">full list</a>` : esc(live.entrantsURI)}</dd>
           <dt>Merkle root</dt><dd><code>${live.entrantsRoot}</code> ${snap ? (rootOk ? "✓ matches the published list" : "⚠ does not match the published list") : ""}</dd>` : ""}
         ${live.status >= S.Drawing && live.status !== S.Cancelled ? `<dt>VRF request</dt><dd><code>${String(live.requestId).slice(0, 18)}…</code></dd>` : ""}
         ${live.status >= S.Drawn && live.status !== S.Cancelled ? `<dt>Random word</dt><dd><code>${String(live.randomWord).slice(0, 24)}…</code></dd>` : ""}
-        ${live.rerolls ? `<dt>Void tickets</dt><dd>${live.rerolls} (holder sold after the snapshot)</dd>` : ""}
       </dl>
       <div class="actions">
         ${canDraw ? `<button class="btn big" id="drawBtn">Request Chainlink VRF draw</button>` : ""}
@@ -315,26 +339,15 @@ async function settle(g) {
   try {
     const snap = await loadSnapshot(g.entrantsURI);
     if (snap.merkleRoot.toLowerCase() !== g.entrantsRoot.toLowerCase()) throw new Error("Published snapshot does not match the committed Merkle root.");
-    const tree = StandardMerkleTree.load(snap.tree);
-    for (let attempt = 0; attempt < 25; attempt++) {
-      const cur = await raffleRead("getGiveaway", [BigInt(g.id)]);
-      if (cur.status !== S.Drawn) break;
-      const index = Number(await raffleRead("drawnIndex", [BigInt(g.id)]));
-      const [idx, holder, tokenId] = snap.tree.values[index].value;
-      if (Number(idx) !== index) throw new Error("Snapshot ordering mismatch");
-      const proof = tree.getProof(index);
-      say(out, `Ticket #${index}: Zombie #${tokenId} held by ${short(holder)}…`, "warn");
-      const r = await send(out, {
-        address: CONFIG.RAFFLE, abi: raffleAbi, functionName: "settle",
-        args: [BigInt(g.id), index, holder, BigInt(tokenId), proof],
-      });
-      if (!r) return;
-      if (r.result) {
-        say(out, `🧟 Zombie sent to ${addrLink(holder)} ${txLink(r.hash)}`, "ok");
-        break;
-      }
-      say(out, `Ticket #${index} was void (Zombie #${tokenId} changed hands). Drawing the next ticket…`, "warn");
-    }
+    const tree = checkSnapshot(snap);
+    const index = Number(await raffleRead("drawnIndex", [BigInt(g.id)]));
+    const [, holder, tokenId] = snap.tree.values[index].value;
+    say(out, `Winning ticket #${index}: Zombie #${tokenId} held by ${short(holder)}…`, "warn");
+    const r = await send(out, {
+      address: CONFIG.RAFFLE, abi: raffleAbi, functionName: "settle",
+      args: [BigInt(g.id), index, holder, BigInt(tokenId), tree.getProof(index)],
+    });
+    if (r) say(out, `🧟 Zombie sent to ${addrLink(holder)} ${txLink(r.hash)}`, "ok");
   } catch (e) {
     say(out, errText(e), "err");
   }
@@ -405,7 +418,11 @@ $("aStart").onclick = async () => {
 $("aFile").onchange = async () => {
   const info = $("aFileInfo");
   try {
-    pendingSnap = JSON.parse(await $("aFile").files[0].text());
+    pendingSnap = null;
+    $("aCommit").disabled = true;
+    const snap = JSON.parse(await $("aFile").files[0].text());
+    checkSnapshot(snap);
+    pendingSnap = snap;
     const s = pendingSnap.stats;
     $("aCid").value = pendingSnap.giveawayId;
     if (!$("aUri").value) $("aUri").value = `snapshots/giveaway-${pendingSnap.giveawayId}.json`;
@@ -421,9 +438,14 @@ $("aCommit").onclick = async () => {
   const out = $("aCommitOut");
   try {
     const uri = $("aUri").value.trim();
-    const published = await fetch(new URL(uri, location.href), { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    if (!published || published.merkleRoot !== pendingSnap.merkleRoot) {
-      if (!confirm("The file isn't published at that path yet (or differs). Holders won't be able to verify the list until it is. Commit anyway?")) return;
+    const url = snapshotUrl(uri);
+    if (!url) throw new Error("Use an https URL or a path on this site.");
+    // The list must be live before committing: without it nobody can prove the winner and settle.
+    const published = await fetch(url, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (!published) throw new Error(`Publish the snapshot first: nothing found at ${url}`);
+    checkSnapshot(published);
+    if (published.merkleRoot !== pendingSnap.merkleRoot || published.entrantCount !== pendingSnap.entrantCount) {
+      throw new Error("The published file differs from the one you loaded.");
     }
     const r = await send(out, {
       address: CONFIG.RAFFLE, abi: raffleAbi, functionName: "commitEntrants",

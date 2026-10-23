@@ -67,7 +67,7 @@
       <li><b>No listed wallets.</b> When the giveaway closes, any wallet with a Zombie listed on OpenSea is excluded. The collection owner wallet is excluded too.</li>
       <li><b>Public snapshot.</b> The full ticket list is published, and its Merkle root is recorded in the contract before the draw.</li>
       <li><b>Chainlink VRF draws.</b> Anyone can request the draw. Chainlink VRF v2.5 returns a verifiable random number onchain.</li>
-      <li><b>Prize delivered by the contract.</b> Anyone can settle. The contract checks the drawn ticket's proof and sends the Zombie to its holder. If that holder sold the Zombie after the snapshot, the ticket is void and the next one is drawn from the same random number.</li>
+      <li><b>Prize delivered by the contract.</b> The winning ticket is fixed the moment Chainlink's number arrives. Anyone can settle: the contract checks the ticket's proof against the committed list and sends the Zombie to the holder recorded in the snapshot. Nothing that happens after the snapshot can change the winner.</li>
     </ol>
     <p class="muted small" id="contracts"></p>
   </section>
@@ -85,7 +85,7 @@
       </div>
       <div class="card">
         <h3>2 · Commit the snapshot</h3>
-        <p class="muted small">After it closes: run <code>npm run snapshot</code>, publish the file, then load it here.</p>
+        <p class="muted small">After it closes: run the snapshot script, publish the file on the site, then load it here. Committing is blocked unless the published file is live and matches exactly.</p>
         <label>Giveaway ID <input id="aCid" value="0"></label>
         <label>Snapshot file <input id="aFile" type="file" accept=".json"></label>
         <label>Published path / URL <input id="aUri" placeholder="snapshots/giveaway-0.json"></label>

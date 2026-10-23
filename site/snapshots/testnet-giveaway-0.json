@@ -2,25 +2,25 @@
  "project": "The Graveyard",
  "giveawayId": 0,
  "chainId": 84532,
- "raffle": "0x28359148a3a61Fe854769C209841b481e22B0c68",
+ "raffle": "0x43f2f0903db60248eA5b6FeD9E82970a347EC192",
  "collection": {
-  "address": "0x545d02125ff136551688daf13406950a5e0148e7",
+  "address": "0xEF63D36d348577c9bdf3d5ce13cAf048c19926aC",
   "openseaSlug": "zombies-on-base"
  },
  "rules": [
   "One ticket per Zombies On Base token held at the snapshot block.",
   "Wallets with any Zombie actively listed on OpenSea at snapshot time are excluded.",
   "The collection owner wallet and the raffle contract are excluded.",
-  "Chainlink VRF picks ticket index = keccak256(abi.encode(randomWord, rerolls)) % entrantCount.",
-  "If the drawn holder no longer owns that Zombie when the prize is settled, the ticket is void and the next index is drawn."
+  "Chainlink VRF picks the winning ticket: index = keccak256(abi.encode(randomWord)) % entrantCount.",
+  "The prize goes to the holder recorded in this snapshot for the winning ticket."
  ],
  "snapshot": {
-  "block": "49346005",
-  "timestamp": 1792791069,
-  "openseaListingsFetchedAt": "2026-10-23T21:31:10.596Z"
+  "block": "49358691",
+  "timestamp": 1792793607,
+  "openseaListingsFetchedAt": "2026-10-23T22:13:27.671Z"
  },
  "stats": {
-  "zombies": 17,
+  "zombies": 18,
   "holders": 10,
   "activeZombieListings": 1,
   "staleListingsIgnored": 0,
@@ -31,6 +31,17 @@
  "merkleRoot": "0x0c3e0605287bd632e46545849cc3858ff07728ec80dfe5bee0d0d5949c2f878b",
  "entrantCount": 13,
  "excluded": [
+  {
+   "wallet": "0xf9B7054985Cd7048E784feD1CBF4aF46604c423C",
+   "reasons": [
+    "collection owner"
+   ],
+   "listedTokenIds": [],
+   "heldTokenIds": [
+    "16",
+    "17"
+   ]
+  },
   {
    "wallet": "0xE2EA13246e94EE0769361C7d14512a04EBB2dCc8",
    "reasons": [
@@ -45,17 +56,7 @@
    ]
   },
   {
-   "wallet": "0xf9B7054985Cd7048E784feD1CBF4aF46604c423C",
-   "reasons": [
-    "collection owner"
-   ],
-   "listedTokenIds": [],
-   "heldTokenIds": [
-    "16"
-   ]
-  },
-  {
-   "wallet": "0x28359148a3a61Fe854769C209841b481e22B0c68",
+   "wallet": "0x43f2f0903db60248eA5b6FeD9E82970a347EC192",
    "reasons": [
     "raffle contract"
    ],

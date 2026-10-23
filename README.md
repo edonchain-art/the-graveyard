@@ -5,7 +5,7 @@
 - **Prize custody:** the prize Zombie is locked in the `GraveyardRaffle` contract. It can only go to the winner. If the giveaway is cancelled before a draw is requested, it goes back to the owner.
 - **Tickets:** one ticket per Zombie held at the snapshot. Wallets with any Zombie listed on OpenSea at snapshot time are excluded, and so is the collection owner wallet.
 - **Randomness:** [Chainlink VRF v2.5](https://docs.chain.link/vrf) (direct funding, paid in ETH). Anyone can request the draw and anyone can settle it.
-- **Verifiable:** the full ticket list is published in `site/snapshots/`, and its Merkle root is committed onchain before the draw. The contract checks the winner's Merkle proof and that they still hold the ticket Zombie before paying.
+- **Verifiable:** the full ticket list is published in `site/snapshots/`, and its Merkle root is committed onchain before the draw. The winning ticket is fixed as soon as Chainlink's number arrives, and the contract pays the holder recorded in the snapshot after checking the Merkle proof.
 
 | | Address (Base) |
 |---|---|
@@ -43,8 +43,14 @@ tools/deploy.html           local page to deploy the raffle from your wallet
 `node snapshot.mjs --network base-sepolia --collection <TestZombies> --raffle <raffle> --giveaway 0 --listings-file fixtures/testnet-listings.json`,
 and view it on the site with `?network=base-sepolia&raffle=<raffle>&zombies=<TestZombies>`. The site shows a "Test mode" banner.
 
-First live test (2026-10-23): raffle `0x28359148a3a61Fe854769C209841b481e22B0c68`, TestZombies `0x545d02125ff136551688daf13406950a5e0148e7`.
-Chainlink VRF fulfilled in about 8 seconds, and the prize was settled to the drawn holder.
+Latest live test, after the security fixes (2026-10-23): raffle `0x43f2f0903db60248eA5b6FeD9E82970a347EC192`,
+TestZombies `0xEF63D36d348577c9bdf3d5ce13cAf048c19926aC`. Chainlink VRF fulfilled in about 6 seconds, the prize was
+settled to the winning snapshot holder, a second draw request was rejected, and a mistakenly sent Zombie was rescued
+while rescuing the live prize was refused.
+
+## Security review
+
+An internal review on 2026-10-23 found and fixed: a front-running attack on the old "must still hold" rule (anyone could buy the drawn Zombie and win instead), a prize lock if the ticket count didn't match the list, ownership renouncing, Zombies stuck after a plain `transferFrom`, re-requesting randomness, and unrestricted snapshot links on the site. `test/Audit.t.sol` replays each attack. This was a self-review, not an independent audit.
 
 ## Development
 

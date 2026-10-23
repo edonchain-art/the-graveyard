@@ -134,9 +134,9 @@ contract GraveyardRaffleTest is Test, MerkleHelper {
         wrapper.fulfill(req, word);
     }
 
-    function _settleDrawn(uint256 id) internal returns (bool) {
-        uint32 i = raffle.drawnIndex(id);
-        return raffle.settle(id, i, holders[i], tickets[i], _proof(leaves, i));
+    function _settleDrawn(uint256 id) internal returns (uint32 i) {
+        i = raffle.drawnIndex(id);
+        raffle.settle(id, i, holders[i], tickets[i], _proof(leaves, i));
     }
 
     function test_fullFlow() public {
@@ -177,7 +177,7 @@ contract GraveyardRaffleTest is Test, MerkleHelper {
         vm.expectRevert(GraveyardRaffle.InvalidProof.selector);
         raffle.settle(id, i, stranger, tickets[i], proof);
 
-        assertTrue(raffle.settle(id, i, holders[i], tickets[i], proof));
+        raffle.settle(id, i, holders[i], tickets[i], proof);
         assertEq(zombies.ownerOf(PRIZE), holders[i]);
         GraveyardRaffle.Giveaway memory g = raffle.getGiveaway(id);
         assertEq(uint8(g.status), uint8(GraveyardRaffle.Status.Completed));
@@ -187,28 +187,21 @@ contract GraveyardRaffleTest is Test, MerkleHelper {
         assertEq(g.entrantsURI, "snapshots/giveaway-0.json");
     }
 
-    function test_soldTicketIsVoidedAndRedrawn() public {
+    function test_winnerIsSnapshotHolderEvenIfSoldAfterwards() public {
         uint256 id = _openCommitDraw(42);
-        uint32 first = raffle.drawnIndex(id);
-        // the drawn holder sells their Zombie after the snapshot
-        vm.prank(holders[first]);
-        zombies.transferFrom(holders[first], stranger, tickets[first]);
+        uint32 i = raffle.drawnIndex(id);
+        // the drawn holder sells their Zombie after the snapshot: they still win
+        vm.prank(holders[i]);
+        zombies.transferFrom(holders[i], stranger, tickets[i]);
 
-        assertFalse(_settleDrawn(id));
-        assertEq(raffle.getGiveaway(id).rerolls, 1);
+        vm.prank(stranger);
+        raffle.settle(id, i, holders[i], tickets[i], _proof(leaves, i));
+        assertEq(zombies.ownerOf(PRIZE), holders[i]);
+        assertFalse(raffle.isLockedPrize(PRIZE));
 
-        // keep settling until someone who still holds wins
-        bool paid;
-        for (uint256 k; k < 20 && !paid; ++k) {
-            uint32 i = raffle.drawnIndex(id);
-            if (i == first) {
-                assertFalse(raffle.settle(id, i, holders[i], tickets[i], _proof(leaves, i)));
-            } else {
-                paid = _settleDrawn(id);
-            }
-        }
-        assertTrue(paid);
-        assertTrue(zombies.ownerOf(PRIZE) != stranger);
+        // settling twice is impossible
+        vm.expectRevert(abi.encodeWithSelector(GraveyardRaffle.WrongStatus.selector, GraveyardRaffle.Status.Completed));
+        raffle.settle(id, i, holders[i], tickets[i], _proof(leaves, i));
     }
 
     function test_onlyOwnerCanOpen_andOnlyZombies() public {
@@ -244,43 +237,34 @@ contract GraveyardRaffleTest is Test, MerkleHelper {
         raffle.cancel(id2);
     }
 
-    function test_vrfRetryIgnoresStaleAnswer_andAbandon() public {
+    function test_noReRequest_lateAnswerAfterCancelIgnored_andAbandon() public {
         uint256 id = _open(uint64(block.timestamp + 1 days));
         vm.warp(block.timestamp + 1 days);
         vm.prank(owner);
         raffle.commitEntrants(id, _root(leaves), 5, "x");
         vm.prank(stranger);
-        uint256 req1 = raffle.requestDraw{value: 0.0001 ether}(id);
+        uint256 req = raffle.requestDraw{value: 0.0001 ether}(id);
 
+        // randomness is never re-requested, even after a long wait
+        vm.warp(block.timestamp + 3 days);
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(GraveyardRaffle.WrongStatus.selector, GraveyardRaffle.Status.Drawing));
         raffle.requestDraw{value: 0.0001 ether}(id);
+
+        // the owner can't cancel while Chainlink may still answer
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(GraveyardRaffle.WrongStatus.selector, GraveyardRaffle.Status.Drawing));
         raffle.cancel(id);
 
-        vm.warp(block.timestamp + 1 days);
-        vm.prank(stranger);
-        uint256 req2 = raffle.requestDraw{value: 0.0001 ether}(id);
+        // after 7 days without an answer the owner may recover the prize
+        vm.warp(block.timestamp + 4 days);
+        vm.prank(owner);
+        raffle.cancel(id);
+        assertEq(zombies.ownerOf(PRIZE), owner);
 
-        wrapper.fulfill(req1, 1); // stale: ignored
-        assertEq(uint8(raffle.getGiveaway(id).status), uint8(GraveyardRaffle.Status.Drawing));
-        wrapper.fulfill(req2, 2);
-        assertEq(raffle.getGiveaway(id).randomWord, 2);
-
-        // separate giveaway where Chainlink never answers: owner may recover after 7 days
-        zombies.mint(owner, 2000);
-        vm.prank(owner);
-        zombies.safeTransferFrom(owner, address(raffle), 2000, abi.encode(uint64(block.timestamp + 1)));
-        vm.warp(block.timestamp + 2);
-        vm.prank(owner);
-        raffle.commitEntrants(1, _root(leaves), 5, "x");
-        vm.prank(stranger);
-        raffle.requestDraw{value: 0.0001 ether}(1);
-        vm.warp(block.timestamp + 7 days);
-        vm.prank(owner);
-        raffle.cancel(1);
-        assertEq(zombies.ownerOf(2000), owner);
+        // a late answer after cancelling changes nothing
+        wrapper.fulfill(req, 99);
+        assertEq(uint8(raffle.getGiveaway(id).status), uint8(GraveyardRaffle.Status.Cancelled));
     }
 
     function Ownable_Unauthorized() internal pure returns (bytes4) {
@@ -338,7 +322,7 @@ contract GraveyardRaffleForkTest is Test, MerkleHelper {
         raffle.rawFulfillRandomWords(req, words);
 
         uint32 idx = raffle.drawnIndex(0);
-        assertTrue(raffle.settle(0, idx, hs[idx], ids[idx], _proof(leaves, idx)));
+        raffle.settle(0, idx, hs[idx], ids[idx], _proof(leaves, idx));
         assertEq(ZOMBIES.ownerOf(1118), hs[idx]);
         emit log_named_address("winner", hs[idx]);
     }
