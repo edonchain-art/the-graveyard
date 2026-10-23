@@ -1,0 +1,12 @@
+{
+  "name": "the-graveyard-snapshot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "snapshot": "node snapshot.mjs"
+  },
+  "dependencies": {
+    "@openzeppelin/merkle-tree": "1.0.8",
+    "viem": "2.21.54"
+  }
+}
