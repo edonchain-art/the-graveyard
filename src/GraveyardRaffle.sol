@@ -73,7 +73,9 @@ contract GraveyardRaffle is VRFV2PlusWrapperConsumerBase, Ownable2Step, IERC721R
     event DrawRequested(uint256 indexed id, uint256 indexed requestId, uint256 price);
     event RandomnessReceived(uint256 indexed id, uint256 indexed requestId, uint256 randomWord);
     event TicketVoided(uint256 indexed id, uint32 index, address holder, uint256 zombieTokenId);
-    event WinnerPaid(uint256 indexed id, address indexed winner, uint256 prizeTokenId, uint256 winningTokenId, uint32 index);
+    event WinnerPaid(
+        uint256 indexed id, address indexed winner, uint256 prizeTokenId, uint256 winningTokenId, uint32 index
+    );
     event GiveawayCancelled(uint256 indexed id);
 
     error WrongCollection();
@@ -89,10 +91,7 @@ contract GraveyardRaffle is VRFV2PlusWrapperConsumerBase, Ownable2Step, IERC721R
     error InvalidProof();
     error RefundFailed();
 
-    constructor(address vrfWrapper, address zombies_)
-        VRFV2PlusWrapperConsumerBase(vrfWrapper)
-        Ownable(msg.sender)
-    {
+    constructor(address vrfWrapper, address zombies_) VRFV2PlusWrapperConsumerBase(vrfWrapper) Ownable(msg.sender) {
         zombies = IERC721(zombies_);
     }
 
@@ -100,10 +99,7 @@ contract GraveyardRaffle is VRFV2PlusWrapperConsumerBase, Ownable2Step, IERC721R
     // 1. Open: receive the prize
     // ------------------------------------------------------------------
 
-    function onERC721Received(address, address from, uint256 tokenId, bytes calldata data)
-        external
-        returns (bytes4)
-    {
+    function onERC721Received(address, address from, uint256 tokenId, bytes calldata data) external returns (bytes4) {
         if (msg.sender != address(zombies)) revert WrongCollection();
         if (from != owner()) revert PrizeNotFromOwner();
         uint64 closesAt = abi.decode(data, (uint64));

@@ -66,7 +66,9 @@ abstract contract MerkleHelper {
             index /= 2;
         }
         proof = new bytes32[](n);
-        for (uint256 i; i < n; ++i) proof[i] = tmp[i];
+        for (uint256 i; i < n; ++i) {
+            proof[i] = tmp[i];
+        }
     }
 
     function _up(bytes32[] memory level) private pure returns (bytes32[] memory next) {
