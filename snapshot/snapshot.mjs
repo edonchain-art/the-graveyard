@@ -7,7 +7,9 @@
 //
 // Usage:
 //   node snapshot.mjs --giveaway 0 --raffle 0xRaffle [--block 123] [--exclude 0xA,0xB]
-//                     [--listings-file listings.json] [--out ../site/snapshots/giveaway-0.json]
+//                     [--listings-file listings.json] [--out <file>]
+//   By default the file goes to the website repo (cloned next to this one):
+//   ../edonchain.art/tools/the-graveyard/snapshots/giveaway-<id>.json  (override with SITE_DIR)
 //   Test runs on Base Sepolia: add --network base-sepolia --collection 0xTestZombies --listings-file f
 //
 // Output: a JSON file with the snapshot details, exclusions, Merkle root and the full
@@ -227,7 +229,8 @@ async function main() {
     tree: tree.dump(),
   };
 
-  const outFile = args.out || join(here, "..", "site", "snapshots", `giveaway-${giveawayId}.json`);
+  const siteDir = process.env.SITE_DIR || join(here, "..", "..", "edonchain.art", "tools", "the-graveyard");
+  const outFile = args.out || join(siteDir, "snapshots", `giveaway-${giveawayId}.json`);
   mkdirSync(dirname(outFile), { recursive: true });
   writeFileSync(outFile, JSON.stringify(out, null, 1));
   console.log(JSON.stringify({ outFile, merkleRoot: tree.root, entrantCount: values.length, stats: out.stats }, null, 2));

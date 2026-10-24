@@ -3,112 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Graveyard · Zombies On Base</title>
-<meta name="description" content="Fully on-chain Zombie szn. Provably fair Zombies On Base giveaways drawn with Chainlink VRF on Base.">
-<meta property="og:title" content="The Graveyard">
-<meta property="og:description" content="Fully on-chain Zombie szn. Provably fair Zombies On Base giveaways drawn with Chainlink VRF.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'><rect width='16' height='16' fill='%230b0c10'/><rect x='4' y='2' width='8' height='12' fill='%23c0cbdc'/><rect x='7' y='4' width='2' height='7' fill='%230b0c10'/><rect x='5' y='6' width='6' height='2' fill='%230b0c10'/></svg>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<title>The Graveyard has moved</title>
+<link rel="canonical" href="https://edonchain.art/tools/the-graveyard/">
+<script>location.replace("https://edonchain.art/tools/the-graveyard/" + location.search + location.hash);</script>
+<style>body{margin:0;background:#0b0c10;color:#e8eaf0;font:16px/1.6 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;padding:16px}a{color:#c0cbdc}</style>
 </head>
 <body>
-<header class="top">
-  <a class="brand" href="#">
-    <span class="tomb" aria-hidden="true"></span>
-    <span>The Graveyard</span>
-  </a>
-  <nav>
-    <a href="#current">Giveaway</a>
-    <a href="#log">Graveyard log</a>
-    <a href="#rules">Rules</a>
-  </nav>
-  <button id="connect" class="btn ghost">Connect wallet</button>
-</header>
-
-<main>
-  <section class="hero">
-    <p class="eyebrow">Zombies On Base</p>
-    <h1>The Graveyard</h1>
-    <p class="tagline">Fully on-chain Zombie szn</p>
-    <p class="lead">Fully onchain Zombies given back to holders. Every draw uses Chainlink VRF on Base, and every result is public onchain.</p>
-    <div class="hero-stats" id="heroStats"></div>
-  </section>
-
-  <section id="current" class="block">
-    <h2 class="sec">Current giveaway</h2>
-    <div id="currentBody" class="current"><p class="muted">Loading from Base…</p></div>
-  </section>
-
-  <section id="check" class="block">
-    <h2 class="sec">Am I in?</h2>
-    <div class="card check">
-      <p class="muted">Check a wallet against the committed snapshot of the latest giveaway.</p>
-      <form id="checkForm" class="row">
-        <input id="checkAddr" placeholder="0x… wallet address" spellcheck="false" autocomplete="off">
-        <button class="btn">Check</button>
-      </form>
-      <div id="checkOut" class="note"></div>
-    </div>
-  </section>
-
-  <section id="log" class="block">
-    <h2 class="sec">Graveyard log</h2>
-    <p class="muted">Every Zombie given back to the community, read directly from the raffle contract.</p>
-    <div id="logBody" class="log"></div>
-  </section>
-
-  <section id="rules" class="block">
-    <h2 class="sec">How it works</h2>
-    <ol class="steps">
-      <li><b>The prize is locked onchain.</b> The Zombie is sent into the raffle contract. From then on it can only go to a winner. If the giveaway is cancelled before the draw, it goes back to the owner.</li>
-      <li><b>One ticket per Zombie.</b> Every Zombies On Base token held at the snapshot is one ticket.</li>
-      <li><b>No listed wallets.</b> When the giveaway closes, any wallet with a Zombie listed on OpenSea is excluded. The collection owner wallet is excluded too.</li>
-      <li><b>Public snapshot.</b> The full ticket list is published, and its Merkle root is recorded in the contract before the draw.</li>
-      <li><b>Chainlink VRF draws.</b> Anyone can request the draw. Chainlink VRF v2.5 returns a verifiable random number onchain.</li>
-      <li><b>Prize delivered by the contract.</b> The winning ticket is fixed the moment Chainlink's number arrives. Anyone can settle: the contract checks the ticket's proof against the committed list and sends the Zombie to the holder recorded in the snapshot. Nothing that happens after the snapshot can change the winner.</li>
-    </ol>
-    <p class="muted small" id="contracts"></p>
-  </section>
-
-  <section id="admin" class="block" hidden>
-    <h2 class="sec">Admin</h2>
-    <div class="admin-grid">
-      <div class="card">
-        <h3>1 · Start a giveaway</h3>
-        <p class="muted small">Sends the prize from your wallet into the raffle contract and opens the entry window.</p>
-        <label>Prize token ID <input id="aPrize" value="1118"></label>
-        <label>Closes at (your local time) <input id="aCloses" type="datetime-local"></label>
-        <button class="btn" id="aStart">Lock prize &amp; start</button>
-        <div class="note" id="aStartOut"></div>
-      </div>
-      <div class="card">
-        <h3>2 · Commit the snapshot</h3>
-        <p class="muted small">After it closes: run the snapshot script, publish the file on the site, then load it here. Committing is blocked unless the published file is live and matches exactly.</p>
-        <label>Giveaway ID <input id="aCid" value="0"></label>
-        <label>Snapshot file <input id="aFile" type="file" accept=".json"></label>
-        <label>Published path / URL <input id="aUri" placeholder="snapshots/giveaway-0.json"></label>
-        <div class="note" id="aFileInfo"></div>
-        <button class="btn" id="aCommit" disabled>Commit snapshot</button>
-        <div class="note" id="aCommitOut"></div>
-      </div>
-      <div class="card">
-        <h3>Cancel</h3>
-        <p class="muted small">Only possible before a draw is requested. Returns the prize to your wallet.</p>
-        <label>Giveaway ID <input id="aXid" value="0"></label>
-        <button class="btn danger" id="aCancel">Cancel giveaway</button>
-        <div class="note" id="aCancelOut"></div>
-      </div>
-    </div>
-  </section>
-</main>
-
-<footer>
-  <p><span class="pixel small">Fully on-chain Zombie szn</span></p>
-  <p class="muted small">Zombies On Base · Randomness by Chainlink VRF · Built on Base</p>
-</footer>
-
-<script type="module" src="app.js"></script>
+<p>The Graveyard now lives at <a href="https://edonchain.art/tools/the-graveyard/">edonchain.art/tools/the-graveyard</a>.</p>
 </body>
 </html>

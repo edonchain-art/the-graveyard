@@ -63,7 +63,7 @@ $("deploy").onclick = async () => {
     let r;
     while (!(r = await eth("eth_getTransactionReceipt", [hash]))) await new Promise((res) => setTimeout(res, 1500));
     if (r.status !== "0x1") throw new Error("Deployment failed: " + hash);
-    say("o2", "GraveyardRaffle deployed at " + r.contractAddress + "\nPut this address in site/config.js (RAFFLE).", "ok");
+    say("o2", "GraveyardRaffle deployed at " + r.contractAddress + "\nPut this address in RAFFLE in edonchain.art/tools/the-graveyard/config.js.", "ok");
   } catch (e) { say("o2", e.message, "err"); }
 };
 </script>
