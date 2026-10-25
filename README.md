@@ -9,7 +9,9 @@
 `src/GraveyardRaffleV2.sol`. No snapshot file, no Merkle tree.
 
 1. **Start (owner, one press):** `startGiveaway(prizeTokenId, closesAt)` with ETH for the Chainlink fee. The prize Zombie is pulled into the contract (approve the raffle once with `setApprovalForAll`).
-2. **Draw (anyone, one press, after the close):** `draw(id)` pays Chainlink VRF v2.5 from the deposit and refunds the unused part to the owner. Chainlink's callback picks a random Zombie (`keccak256(randomWord, attempt) % totalSupply`) and sends the prize to its current holder **in the same transaction**, so nobody can react between the random number and the payout. Zombies held by the owner or by the contract are skipped.
+2. **Draw (automatic at the close, or anyone as a backup):** `draw(id)` pays Chainlink VRF v2.5 from the deposit and refunds the unused part to the owner. Chainlink's callback picks a random Zombie (`keccak256(randomWord, attempt) % totalSupply`) and sends the prize to its current holder **in the same transaction**, so nobody can react between the random number and the payout. Zombies held by the owner or by the contract are skipped.
+
+**Automatic draw:** the contract implements Chainlink Automation (`checkUpkeep` / `performUpkeep`). `checkUpkeep` returns the newest closed, undrawn giveaway; `performUpkeep` draws it, paid entirely from its deposit (it never spends anyone else's ETH). Register it as a **Custom Logic** upkeep at automation.chain.link on Base (gas limit 500,000; fund with LINK on Base). `draw(id)` stays available to anyone as a backup.
 
 If no eligible holder is found in the callback's 8 attempts, or the transfer fails, anyone calls `continuePayout(id)`. The owner can cancel before the draw (prize and deposit returned), or 7 days after a draw that Chainlink never answered. Randomness is never re-requested.
 

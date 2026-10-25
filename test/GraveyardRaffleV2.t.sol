@@ -241,6 +241,64 @@ contract GraveyardRaffleV2Test is Test {
         assertEq(address(r).balance, DEPOSIT - wrapper.PRICE());
     }
 
+    function test_automationDrawsRightAfterClose() public {
+        uint256 id = _start(1 hours);
+        (bool needed,) = raffle.checkUpkeep("");
+        assertFalse(needed, "nothing to do while open");
+
+        vm.warp(block.timestamp + 1 hours);
+        bytes memory data;
+        (needed, data) = raffle.checkUpkeep("");
+        assertTrue(needed);
+        assertEq(abi.decode(data, (uint256)), id);
+
+        address keeper = makeAddr("chainlink automation forwarder");
+        uint256 ownerBefore = owner.balance;
+        vm.prank(keeper);
+        raffle.performUpkeep(data);
+        assertEq(uint8(raffle.getGiveaway(id).status), uint8(GraveyardRaffleV2.Status.Drawing));
+        assertEq(owner.balance - ownerBefore, DEPOSIT - wrapper.PRICE(), "unused deposit refunded");
+        assertEq(keeper.balance, 0, "keeper pays nothing from the raffle");
+
+        (needed,) = raffle.checkUpkeep("");
+        assertFalse(needed, "never drawn twice");
+        vm.prank(keeper);
+        vm.expectRevert(
+            abi.encodeWithSelector(GraveyardRaffleV2.WrongStatus.selector, GraveyardRaffleV2.Status.Drawing)
+        );
+        raffle.performUpkeep(data);
+
+        wrapper.fulfill(raffle.getGiveaway(id).requestId, 9);
+        assertEq(uint8(raffle.getGiveaway(id).status), uint8(GraveyardRaffleV2.Status.Completed));
+    }
+
+    function test_automationHandlesSeveralGiveawaysAndSmallDeposits() public {
+        zombies.mint(owner, 2000);
+        vm.startPrank(owner);
+        uint256 a = raffle.startGiveaway{value: DEPOSIT}(PRIZE, uint64(block.timestamp + 10));
+        uint256 b = raffle.startGiveaway{value: 1 wei}(2000, uint64(block.timestamp + 20)); // underfunded
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 30);
+        (bool needed, bytes memory data) = raffle.checkUpkeep("");
+        assertTrue(needed);
+        assertEq(abi.decode(data, (uint256)), b, "newest closed first");
+        // an underfunded giveaway can't be drawn by automation (the simulation reverts, so it isn't sent)
+        vm.expectRevert(abi.encodeWithSelector(GraveyardRaffleV2.FeeTooLow.selector, wrapper.PRICE(), 1));
+        raffle.performUpkeep(data);
+        // anyone can still draw it manually by paying the shortfall
+        uint256 price = wrapper.PRICE();
+        vm.prank(stranger);
+        raffle.draw{value: price}(b);
+
+        (needed, data) = raffle.checkUpkeep("");
+        assertTrue(needed);
+        assertEq(abi.decode(data, (uint256)), a);
+        raffle.performUpkeep(data);
+        (needed,) = raffle.checkUpkeep("");
+        assertFalse(needed);
+    }
+
     function test_adminGuards() public {
         vm.prank(owner);
         vm.expectRevert(GraveyardRaffleV2.RenounceDisabled.selector);
@@ -285,9 +343,11 @@ contract GraveyardRaffleV2ForkTest is Test {
         vm.warp(block.timestamp + 1 hours);
         vm.txGasPrice(0.012 gwei);
         emit log_named_uint("VRF fee (wei) at 0.012 gwei", raffle.drawPrice());
-        address caller = makeAddr("caller");
-        vm.prank(caller);
-        uint256 req = raffle.draw(0);
+        (bool needed, bytes memory performData) = raffle.checkUpkeep("");
+        assertTrue(needed, "Automation sees the closed giveaway");
+        vm.prank(makeAddr("automation forwarder"));
+        raffle.performUpkeep(performData);
+        uint256 req = raffle.getGiveaway(0).requestId;
 
         uint256[] memory words = new uint256[](1);
         words[0] = uint256(keccak256("graveyard v2"));

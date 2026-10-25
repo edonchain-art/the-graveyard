@@ -18,6 +18,9 @@ import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/vrf/dev/libraries/V
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
+import {
+    AutomationCompatibleInterface
+} from "@chainlink/contracts/src/v0.8/automation/interfaces/AutomationCompatibleInterface.sol";
 
 /// @title  GraveyardRaffleV2
 /// @notice Two-step onchain giveaways of Zombies On Base tokens to Zombies holders, drawn
@@ -28,8 +31,9 @@ import {IERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions
 ///                 fee. The prize Zombie is pulled into this contract (the owner approves
 ///                 this contract once). It can only go to a winner, or back to the owner if
 ///                 the giveaway is cancelled before the draw.
-///   2. Drawing    After closesAt, anyone calls draw(). The fee comes from the deposit (any
-///                 shortfall can be paid with the call) and the unused deposit is refunded.
+///   2. Drawing    After closesAt, Chainlink Automation (performUpkeep) or anyone (draw())
+///                 requests the random number. The fee comes from the deposit (a manual
+///                 caller can pay a shortfall) and the unused deposit is refunded.
 ///   3. Completed  Chainlink delivers the random word and, in the same transaction, the
 ///                 contract picks a random Zombie (index = keccak256(word, attempt) %
 ///                 supply) and sends the prize to whoever holds it. Zombies held by the
@@ -37,7 +41,7 @@ import {IERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions
 ///                 Every Zombie in existence is one ticket; its holder at that moment wins.
 ///   (Drawn)       If no eligible holder was found within the attempt budget, or the
 ///                 transfer failed, anyone can finish it with continuePayout().
-contract GraveyardRaffleV2 is VRFV2PlusWrapperConsumerBase, Ownable2Step {
+contract GraveyardRaffleV2 is VRFV2PlusWrapperConsumerBase, Ownable2Step, AutomationCompatibleInterface {
     enum Status {
         None,
         Open,
@@ -71,6 +75,8 @@ contract GraveyardRaffleV2 is VRFV2PlusWrapperConsumerBase, Ownable2Step {
     uint32 public constant CALLBACK_ATTEMPTS = 8;
     /// @notice Random picks tried per continuePayout() call.
     uint32 public constant CONTINUE_ATTEMPTS = 64;
+    /// @notice Newest giveaways scanned by checkUpkeep.
+    uint256 public constant UPKEEP_SCAN = 50;
     /// @notice After this long without a VRF response, the owner may cancel and recover the prize.
     ///         Randomness is never re-requested for a giveaway (Chainlink's guidance).
     uint64 public constant VRF_ABANDON_AFTER = 7 days;
@@ -147,6 +153,36 @@ contract GraveyardRaffleV2 is VRFV2PlusWrapperConsumerBase, Ownable2Step {
     /// @notice Request the random number. Can only happen once per giveaway. The fee is paid
     ///         from the deposit; send ETH only if the deposit doesn't cover it (excess refunded).
     function draw(uint256 id) external payable returns (uint256 requestId) {
+        return _draw(id, msg.value);
+    }
+
+    /// @notice True when a giveaway has closed and hasn't been drawn yet.
+    function isDrawable(uint256 id) public view returns (bool) {
+        Giveaway storage g = _get(id);
+        return g.status == Status.Open && block.timestamp >= g.closesAt;
+    }
+
+    // ------------------------------------------------------------------
+    // Chainlink Automation: draws as soon as a giveaway closes
+    // ------------------------------------------------------------------
+
+    /// @notice Chainlink Automation asks this every block (off-chain simulation).
+    function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData) {
+        uint256 n = _giveaways.length;
+        uint256 stop = n > UPKEEP_SCAN ? n - UPKEEP_SCAN : 0;
+        for (uint256 i = n; i > stop; --i) {
+            if (isDrawable(i - 1)) return (true, abi.encode(i - 1));
+        }
+        return (false, "");
+    }
+
+    /// @notice Called by Chainlink Automation when checkUpkeep says a giveaway is ready. Anyone may
+    ///         call it; it only ever draws a closed giveaway, paid entirely from its deposit.
+    function performUpkeep(bytes calldata performData) external {
+        _draw(abi.decode(performData, (uint256)), 0);
+    }
+
+    function _draw(uint256 id, uint256 paid) internal returns (uint256 requestId) {
         Giveaway storage g = _get(id);
         if (g.status != Status.Open) revert WrongStatus(g.status);
         if (block.timestamp < g.closesAt) revert StillOpen();
@@ -155,7 +191,7 @@ contract GraveyardRaffleV2 is VRFV2PlusWrapperConsumerBase, Ownable2Step {
 
         uint256 price = drawPrice();
         uint256 deposit = g.feeDeposit;
-        if (deposit + msg.value < price) revert FeeTooLow(price, deposit + msg.value);
+        if (deposit + paid < price) revert FeeTooLow(price, deposit + paid);
 
         lockedFees -= deposit;
         g.feePaid = price;
@@ -175,7 +211,7 @@ contract GraveyardRaffleV2 is VRFV2PlusWrapperConsumerBase, Ownable2Step {
 
         // Leftovers: the caller's ETH comes back first, then the unused deposit goes to the owner.
         uint256 fromCaller = price > deposit ? price - deposit : 0;
-        uint256 callerRefund = msg.value - fromCaller;
+        uint256 callerRefund = paid - fromCaller;
         uint256 ownerRefund = deposit > price ? deposit - price : 0;
         if (callerRefund > 0) _send(msg.sender, callerRefund);
         if (ownerRefund > 0) {
