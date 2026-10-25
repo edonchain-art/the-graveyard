@@ -29,7 +29,7 @@ If no eligible holder is found in the callback's 8 attempts, or the transfer fai
 | Zombies On Base | `0xa2d33352e3e2b4fe1b8af7387c375828197bcd9b` |
 | Chainlink VRF v2.5 wrapper | `0xb0407dbe851f8318bd31404A49e658143C982F23` |
 | GraveyardRaffle v1 | [`0x5DBfB702cD34bCaf41f442A8123477556FFc1bFc`](https://basescan.org/address/0x5DBfB702cD34bCaf41f442A8123477556FFc1bFc) (deployed 2026-10-24, owner `0x9C97…5acf`) |
-| GraveyardRaffleV2 | _not deployed yet_ |
+| GraveyardRaffleV2 | [`0x908CE1511e021Fb3Fd4eaE350E57BaD8114724b8`](https://basescan.org/address/0x908CE1511e021Fb3Fd4eaE350E57BaD8114724b8#code) (deployed 2026-10-24, owner `0x9C97…5acf`, verified on Basescan and Sourcify) |
 
 ## Repo layout
 
