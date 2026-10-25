@@ -1,0 +1,11 @@
+{
+  "name": "the-graveyard-keeper",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "keeper": "node keeper.mjs"
+  },
+  "dependencies": {
+    "viem": "2.21.54"
+  }
+}

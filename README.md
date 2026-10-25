@@ -9,9 +9,9 @@
 `src/GraveyardRaffleV2.sol`. No snapshot file, no Merkle tree.
 
 1. **Start (owner, one press):** `startGiveaway(prizeTokenId, closesAt)` with ETH for the Chainlink fee. The prize Zombie is pulled into the contract (approve the raffle once with `setApprovalForAll`).
-2. **Draw (automatic at the close, or anyone as a backup):** `draw(id)` pays Chainlink VRF v2.5 from the deposit and refunds the unused part to the owner. Chainlink's callback picks a random Zombie (`keccak256(randomWord, attempt) % totalSupply`) and sends the prize to its current holder **in the same transaction**, so nobody can react between the random number and the payout. Zombies held by the owner or by the contract are skipped.
+2. **Draw (automatic a few minutes after the close via the keeper, or anyone as a backup):** `draw(id)` pays Chainlink VRF v2.5 from the deposit and refunds the unused part to the owner. Chainlink's callback picks a random Zombie (`keccak256(randomWord, attempt) % totalSupply`) and sends the prize to its current holder **in the same transaction**, so nobody can react between the random number and the payout. Zombies held by the owner or by the contract are skipped.
 
-**Automatic draw:** the contract implements Chainlink Automation (`checkUpkeep` / `performUpkeep`). `checkUpkeep` returns the newest closed, undrawn giveaway; `performUpkeep` draws it, paid entirely from its deposit (it never spends anyone else's ETH). Register it as a **Custom Logic** upkeep at automation.chain.link on Base (gas limit 500,000; fund with LINK on Base). `draw(id)` stays available to anyone as a backup.
+**Automatic draw:** the GitHub Actions workflow `.github/workflows/keeper.yml` runs `keeper/keeper.mjs` every 5 minutes (GitHub runs schedules best-effort, so usually within minutes of the close). It calls the raffle's public `checkUpkeep` / `performUpkeep` (the Chainlink-Automation-style interface) from a gas-only wallet whose key is the repository secret `KEEPER_PRIVATE_KEY`; the Chainlink fee always comes from the giveaway's deposit. It also finishes any stuck payout with `continuePayout`, and commits an empty keepalive every ~50 days so GitHub doesn't pause the schedule. Without the secret it runs as a dry run. `draw(id)` stays available to anyone as a backup. (Chainlink Automation is deprecated in favor of CRE; the same `performUpkeep` works with either.)
 
 If no eligible holder is found in the callback's 8 attempts, or the transfer fails, anyone calls `continuePayout(id)`. The owner can cancel before the draw (prize and deposit returned), or 7 days after a draw that Chainlink never answered. Randomness is never re-requested.
 
@@ -40,6 +40,7 @@ test/                       unit tests (mock VRF) + Base mainnet fork test
 snapshot/                   snapshot builder (holders + OpenSea listings + Merkle tree)
 site/                       redirect from the old GitHub Pages URL to edonchain.art
 tools/deploy.html           local page to deploy GraveyardRaffleV2 from your wallet
+keeper/                     scheduled keeper that draws closed giveaways (GitHub Actions)
 ```
 
 ## Running a v1 giveaway (historical)

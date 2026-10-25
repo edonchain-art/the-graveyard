@@ -1,0 +1,55 @@
+name: Graveyard keeper
+
+# Draws closed giveaways on GraveyardRaffleV2 (Base) and finishes stuck payouts.
+# GitHub runs schedules on a best-effort basis: usually within minutes of the time, sometimes later.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write # only for the keepalive commit below
+
+concurrency:
+  group: graveyard-keeper
+  cancel-in-progress: false
+
+jobs:
+  keep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: keeper
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: keeper/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Draw closed giveaways
+        env:
+          KEEPER_PRIVATE_KEY: ${{ secrets.KEEPER_PRIVATE_KEY }}
+          RPC_URL: ${{ secrets.BASE_RPC_URL }}
+        run: node keeper.mjs
+
+      # GitHub pauses scheduled workflows after 60 days without repository activity.
+      # Commit an empty keepalive every ~50 days so the keeper never goes to sleep.
+      - name: Keepalive
+        working-directory: .
+        run: |
+          last=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          if [ $(( (now - last) / 86400 )) -ge 50 ]; then
+            git config user.name "graveyard-keeper"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "keepalive: keep the Graveyard keeper schedule active"
+            git push
+          fi
