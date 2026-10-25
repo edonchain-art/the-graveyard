@@ -275,6 +275,7 @@ contract GraveyardRaffleTest is Test, MerkleHelper {
 interface IZombiesOnBase is IERC721 {
     function owner() external view returns (address);
     function tokenByIndex(uint256 index) external view returns (uint256);
+    function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256);
 }
 
 /// Real contracts on a Base mainnet fork: Zombies On Base + Chainlink VRF v2.5 wrapper.
@@ -283,14 +284,16 @@ contract GraveyardRaffleForkTest is Test, MerkleHelper {
     address constant WRAPPER = 0xb0407dbe851f8318bd31404A49e658143C982F23;
     address constant OWNER = 0x9C977b3A786B05823620756C4B9F3435E1f05acf;
 
-    function test_fork_giveaway1118() public {
+    function test_fork_giveaway() public {
         vm.createSelectFork("base");
         vm.prank(OWNER);
         GraveyardRaffle raffle = new GraveyardRaffle(WRAPPER, address(ZOMBIES));
+        // any Zombie the owner holds today (#1118 itself was given away in giveaway #0)
+        uint256 prize = ZOMBIES.tokenOfOwnerByIndex(OWNER, 0);
 
         vm.prank(OWNER);
-        ZOMBIES.safeTransferFrom(OWNER, address(raffle), 1118, abi.encode(uint64(block.timestamp + 1 days)));
-        assertEq(ZOMBIES.ownerOf(1118), address(raffle));
+        ZOMBIES.safeTransferFrom(OWNER, address(raffle), prize, abi.encode(uint64(block.timestamp + 1 days)));
+        assertEq(ZOMBIES.ownerOf(prize), address(raffle));
 
         // tickets from the real holders of the first 8 minted Zombies
         uint256 n = 8;
@@ -323,7 +326,7 @@ contract GraveyardRaffleForkTest is Test, MerkleHelper {
 
         uint32 idx = raffle.drawnIndex(0);
         raffle.settle(0, idx, hs[idx], ids[idx], _proof(leaves, idx));
-        assertEq(ZOMBIES.ownerOf(1118), hs[idx]);
+        assertEq(ZOMBIES.ownerOf(prize), hs[idx]);
         emit log_named_address("winner", hs[idx]);
     }
 }

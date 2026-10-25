@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Graveyard Deploy</title>
+<title>Graveyard Deploy v2</title>
 <link rel="stylesheet" href="https://edonchain.art/assets/ed.css">
 <style>
   main{ max-width:720px; margin:0 auto; padding:48px 16px; }
@@ -17,7 +17,7 @@
 <body>
 <main>
   <div class="eyebrow">The Graveyard · Base mainnet</div>
-  <h1 class="pixel" style="font-size:32px">Deploy <span>GraveyardRaffle</span></h1>
+  <h1 class="pixel" style="font-size:32px">Deploy <span>GraveyardRaffleV2</span></h1>
   <p>Run <code>forge build</code>, then serve the repo root (<code>python -m http.server 8120</code>) and open
     <code>http://localhost:8120/tools/deploy.html</code> in the browser with your wallet. Nothing is sent until you approve it.</p>
 
@@ -61,7 +61,7 @@ $("connect").onclick = (e) => w.open(e.currentTarget);
 $("deploy").onclick = async () => {
   try {
     await w.ensureChain();
-    const art = await fetch("../out/GraveyardRaffle.sol/GraveyardRaffle.json", { cache: "no-store" }).then((r) => r.json());
+    const art = await fetch("../out/GraveyardRaffleV2.sol/GraveyardRaffleV2.json", { cache: "no-store" }).then((r) => r.json());
     const tx = { from: w.address, data: art.bytecode.object + WRAPPER.padStart(64, "0") + ZOMBIES.padStart(64, "0") };
     say("o2", "Simulating…", "warn");
     await w.provider.request({ method: "eth_estimateGas", params: [tx] });
@@ -73,7 +73,7 @@ $("deploy").onclick = async () => {
       await new Promise((res) => setTimeout(res, 1500));
     }
     if (r.status !== "0x1") throw new Error("Deployment failed: " + hash);
-    say("o2", "GraveyardRaffle deployed at " + r.contractAddress + "\nTx " + hash, "ok");
+    say("o2", "GraveyardRaffleV2 deployed at " + r.contractAddress + "\nTx " + hash, "ok");
   } catch (e) {
     say("o2", walletErrorText(e), "err");
   }

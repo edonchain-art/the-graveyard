@@ -4,6 +4,19 @@
 
 **Fully on-chain Zombie szn.** Provably fair giveaways of Zombies On Base tokens to holders, on Base.
 
+## v2: two presses (current)
+
+`src/GraveyardRaffleV2.sol`. No snapshot file, no Merkle tree.
+
+1. **Start (owner, one press):** `startGiveaway(prizeTokenId, closesAt)` with ETH for the Chainlink fee. The prize Zombie is pulled into the contract (approve the raffle once with `setApprovalForAll`).
+2. **Draw (anyone, one press, after the close):** `draw(id)` pays Chainlink VRF v2.5 from the deposit and refunds the unused part to the owner. Chainlink's callback picks a random Zombie (`keccak256(randomWord, attempt) % totalSupply`) and sends the prize to its current holder **in the same transaction**, so nobody can react between the random number and the payout. Zombies held by the owner or by the contract are skipped.
+
+If no eligible holder is found in the callback's 8 attempts, or the transfer fails, anyone calls `continuePayout(id)`. The owner can cancel before the draw (prize and deposit returned), or 7 days after a draw that Chainlink never answered. Randomness is never re-requested.
+
+## v1: snapshot + Merkle proof (giveaway #0)
+
+`src/GraveyardRaffle.sol`, deployed at `0x5DBf…1bFc`, kept as a read-only record.
+
 - **Prize custody:** the prize Zombie is locked in the `GraveyardRaffle` contract. It can only go to the winner. If the giveaway is cancelled before a draw is requested, it goes back to the owner.
 - **Tickets:** one ticket per Zombie held at the snapshot. Wallets with any Zombie listed on OpenSea at snapshot time are excluded, and so is the collection owner wallet.
 - **Randomness:** [Chainlink VRF v2.5](https://docs.chain.link/vrf) (direct funding, paid in ETH). Anyone can request the draw and anyone can settle it.
@@ -13,19 +26,21 @@
 |---|---|
 | Zombies On Base | `0xa2d33352e3e2b4fe1b8af7387c375828197bcd9b` |
 | Chainlink VRF v2.5 wrapper | `0xb0407dbe851f8318bd31404A49e658143C982F23` |
-| GraveyardRaffle | [`0x5DBfB702cD34bCaf41f442A8123477556FFc1bFc`](https://basescan.org/address/0x5DBfB702cD34bCaf41f442A8123477556FFc1bFc) (deployed 2026-10-24, owner `0x9C97…5acf`) |
+| GraveyardRaffle v1 | [`0x5DBfB702cD34bCaf41f442A8123477556FFc1bFc`](https://basescan.org/address/0x5DBfB702cD34bCaf41f442A8123477556FFc1bFc) (deployed 2026-10-24, owner `0x9C97…5acf`) |
+| GraveyardRaffleV2 | _not deployed yet_ |
 
 ## Repo layout
 
 ```
-src/GraveyardRaffle.sol     raffle contract
+src/GraveyardRaffleV2.sol   raffle v2 (current: onchain draw, prepaid fee)
+src/GraveyardRaffle.sol     raffle v1 (giveaway #0)
 test/                       unit tests (mock VRF) + Base mainnet fork test
 snapshot/                   snapshot builder (holders + OpenSea listings + Merkle tree)
 site/                       redirect from the old GitHub Pages URL to edonchain.art
-tools/deploy.html           local page to deploy the raffle from your wallet
+tools/deploy.html           local page to deploy GraveyardRaffleV2 from your wallet
 ```
 
-## Running a giveaway
+## Running a v1 giveaway (historical)
 
 1. **Deploy (once).** Run `forge build`, serve the repo root locally (`python -m http.server 8120`), and open `http://localhost:8120/tools/deploy.html`. Deploy from the owner wallet, then put the address in `tools/the-graveyard/config.js` in the edonchain.art repo and push.
 2. **Start.** On the site, connect the owner wallet. In **Admin → Start a giveaway**, enter the prize token ID and close time. This sends the prize into the contract.
@@ -45,7 +60,11 @@ tools/deploy.html           local page to deploy the raffle from your wallet
 `node snapshot.mjs --network base-sepolia --collection <TestZombies> --raffle <raffle> --giveaway 0 --listings-file fixtures/testnet-listings.json`,
 and view it on the site with `?network=base-sepolia&raffle=<raffle>&zombies=<TestZombies>`. The site shows a "Test mode" banner.
 
-Latest live test, after the security fixes (2026-10-23): raffle `0x43f2f0903db60248eA5b6FeD9E82970a347EC192`,
+v2 live test (2026-10-24): GraveyardRaffleV2 `0xAEaD984db2efa27DDca6E865779D76D27a83c09a` on Base Sepolia. Two giveaways ran
+start → draw with no ETH sent at the draw; Chainlink answered in about 5 seconds and the prize was delivered in the
+same callback each time.
+
+v1 live test, after the security fixes (2026-10-23): raffle `0x43f2f0903db60248eA5b6FeD9E82970a347EC192`,
 TestZombies `0xEF63D36d348577c9bdf3d5ce13cAf048c19926aC`. Chainlink VRF fulfilled in about 6 seconds, the prize was
 settled to the winning snapshot holder, a second draw request was rejected, and a mistakenly sent Zombie was rescued
 while rescuing the live prize was refused.
