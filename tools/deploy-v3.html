@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graveyard Deploy v3</title>
+<link rel="stylesheet" href="https://edonchain.art/assets/ed.css">
+<style>
+  main{ max-width:720px; margin:0 auto; padding:48px 16px; }
+  .card{ background:var(--panel); border:1px solid var(--border); padding:20px; margin:18px 0; box-shadow:4px 4px 0 var(--px-shadow); position:relative; }
+  .out{ font:13px var(--font-ui); white-space:pre-wrap; word-break:break-all; margin-top:12px; }
+  .ok{ color:var(--good); } .err{ color:var(--bad); } .warn{ color:var(--warn); }
+  .connect-btn{ width:auto; }
+  p{ color:var(--muted); font-size:14px; line-height:1.8; }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">The Graveyard · Base mainnet</div>
+  <h1 class="pixel" style="font-size:32px">Deploy <span>GraveyardRaffleV3</span></h1>
+  <p>Run <code>forge build</code>, then serve the repo root (<code>python -m http.server 8120</code>) and open
+    <code>http://localhost:8120/tools/deploy-v3.html</code> in the browser with your wallet. Nothing is sent until you approve it. V3 adds a minimum holding per giveaway; V2 keeps its history.</p>
+
+  <div class="card">
+    <button id="connect" class="connect-btn">Connect Wallet</button>
+    <div class="out" id="o1"></div>
+  </div>
+
+  <div class="card">
+    <p>Constructor: Chainlink VRF v2.5 wrapper <code>0xb0407dbe851f8318bd31404A49e658143C982F23</code>,
+      Zombies On Base <code>0xa2d33352e3e2b4fe1b8af7387c375828197bcd9b</code>. The deploying wallet becomes the owner.</p>
+    <button class="btn-primary" id="deploy" disabled>Deploy raffle</button>
+    <div class="out" id="o2"></div>
+  </div>
+</main>
+<script type="module">
+import { createWallet, walletErrorText } from "https://edonchain.art/assets/wallet.js";
+
+const OWNER = "0x9c977b3a786b05823620756c4b9f3435e1f05acf";
+const WRAPPER = "b0407dbe851f8318bd31404a49e658143c982f23";
+const ZOMBIES = "a2d33352e3e2b4fe1b8af7387c375828197bcd9b";
+const $ = (id) => document.getElementById(id);
+const say = (id, m, c = "") => { $(id).className = "out " + c; $(id).textContent = m; };
+
+const w = createWallet({
+  chain: { id: 8453, name: "Base", rpc: "https://mainnet.base.org", explorer: "https://basescan.org" },
+  onChange: (address) => {
+    $("connect").textContent = address ? address.slice(0, 6) + "…" + address.slice(-4) : "Connect Wallet";
+    if (!address) { say("o1", ""); $("deploy").disabled = true; return; }
+    if (address.toLowerCase() !== OWNER) {
+      say("o1", "Connected " + address + "\nThis isn't the Zombies On Base owner wallet (" + OWNER + "). Switch accounts in your wallet.", "err");
+      $("deploy").disabled = true;
+      return;
+    }
+    say("o1", "Connected owner wallet " + address + " on Base", "ok");
+    $("deploy").disabled = false;
+  },
+});
+$("connect").onclick = (e) => w.open(e.currentTarget);
+
+$("deploy").onclick = async () => {
+  try {
+    await w.ensureChain();
+    const art = await fetch("../out/GraveyardRaffleV3.sol/GraveyardRaffleV3.json", { cache: "no-store" }).then((r) => r.json());
+    const tx = { from: w.address, data: art.bytecode.object + WRAPPER.padStart(64, "0") + ZOMBIES.padStart(64, "0") };
+    say("o2", "Simulating…", "warn");
+    await w.provider.request({ method: "eth_estimateGas", params: [tx] });
+    say("o2", "Confirm in your wallet…", "warn");
+    const hash = await w.provider.request({ method: "eth_sendTransaction", params: [tx] });
+    say("o2", "Sent " + hash + "\nWaiting for confirmation…", "warn");
+    let r;
+    while (!(r = await w.provider.request({ method: "eth_getTransactionReceipt", params: [hash] }))) {
+      await new Promise((res) => setTimeout(res, 1500));
+    }
+    if (r.status !== "0x1") throw new Error("Deployment failed: " + hash);
+    say("o2", "GraveyardRaffleV3 deployed at " + r.contractAddress + "\nTx " + hash, "ok");
+  } catch (e) {
+    say("o2", walletErrorText(e), "err");
+  }
+};
+</script>
+</body>
+</html>

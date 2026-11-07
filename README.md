@@ -4,7 +4,15 @@
 
 **Fully on-chain Zombie szn.** Provably fair giveaways of Zombies On Base tokens to holders, on Base.
 
-## v2: two presses (current)
+## v3: minimum holding (current)
+
+`src/GraveyardRaffleV3.sol` is v2 plus a minimum holding per giveaway: `startGiveaway(prizeTokenId, closesAt, minHolding)`. At the draw, a random Zombie is picked exactly as in v2; if its holder has fewer than `minHolding` Zombies at that moment, the pick is skipped and the next one is drawn. So every Zombie in a wallet holding at least `minHolding` is one ticket. `minHolding = 1` means every holder, like v2.
+
+- The Chainlink callback tries up to 32 picks (callback gas limit 700,000; measured on Base: ~74k base, ~13k per pick, ~123k for the payout), so a minimum almost never leaves the payout to `continuePayout()`, where the random word is public and the next picks can be predicted.
+- If 512 picks in a row find no wallet with the minimum, the minimum stops applying and any holder can win, so a prize can never get stuck.
+- The keeper draws v2 and v3 giveaways (`RAFFLE_V3` env, or the default address once deployed). Deploy from `tools/deploy-v3.html`.
+
+## v2: two presses
 
 `src/GraveyardRaffleV2.sol`. No snapshot file, no Merkle tree.
 
@@ -29,6 +37,7 @@ If no eligible holder is found in the callback's 8 attempts, or the transfer fai
 | Zombies On Base | `0xa2d33352e3e2b4fe1b8af7387c375828197bcd9b` |
 | Chainlink VRF v2.5 wrapper | `0xb0407dbe851f8318bd31404A49e658143C982F23` |
 | GraveyardRaffle v1 | [`0x5DBfB702cD34bCaf41f442A8123477556FFc1bFc`](https://basescan.org/address/0x5DBfB702cD34bCaf41f442A8123477556FFc1bFc) (deployed 2026-10-24, owner `0x9C97…5acf`) |
+| GraveyardRaffleV3 | [`0xE6299d1Ca0c8eB2F51d1582F5075896685fA5d5e`](https://basescan.org/address/0xE6299d1Ca0c8eB2F51d1582F5075896685fA5d5e#code) (deployed 2026-11-07, owner `0x9C97…5acf`, verified on Basescan and Sourcify) |
 | GraveyardRaffleV2 | [`0x908CE1511e021Fb3Fd4eaE350E57BaD8114724b8`](https://basescan.org/address/0x908CE1511e021Fb3Fd4eaE350E57BaD8114724b8#code) (deployed 2026-10-24, owner `0x9C97…5acf`, verified on Basescan and Sourcify) |
 
 ## Repo layout
